@@ -41,6 +41,7 @@ void drawPoisonedMushroom(sf::RenderWindow& window, sf::Sprite& poisonedMushroom
 void shootCentipede(float bullet[], float centipede[][4], int centipedeLength, int& score, int& hits, sf::RenderWindow& window, sf::Sprite& poisonedMushroomSprite, float poisonedMushroom[][3]);
 void poisonMushroomPlayerCollision(float player[], float poisonedMushroom[][3], int& score);
 void centipedePlayerCollision(float player[], float centipede[][4], int centipedeLength, int& score);
+void splitCentipede(float centipede[][4], int centipedeLength, int index);
 
 int main()
 {
@@ -195,8 +196,10 @@ int main()
 	poisonedMushroomSprite.setTextureRect(sf::IntRect(0, 32, boxPixelsX, boxPixelsY));
 
 	// initializing centipede and centipede sprites
-	const int centipedeLength = 12;
-    float centipede[centipedeLength][4]; // 11 segements array for centipede segments with x and y coordinates + existence + direction
+
+	const int maxCentipedeLength = 20;
+	int centipedeLength = 12;
+    float centipede[maxCentipedeLength][4]; // 11 segements array for centipede segments with x and y coordinates + existence + direction
     
 	//int centipedeX = rand() % resolutionX; // random x coordinate
 	int centipedeX = resolutionX; //start from the top right
@@ -298,7 +301,7 @@ int main()
 		centipedePlayerCollision(player, centipede, centipedeLength, score);
 
 		// update the text string with the current score
-        text.setString("Score : " + to_string(score));
+        text.setString("Score " + to_string(score));
 
 		sf::Event e;
 		while (window.pollEvent(e)) 
@@ -355,13 +358,6 @@ void drawPlayer(sf::RenderWindow& window, float player[], sf::Sprite& playerSpri
 			deathSprite.setTextureRect(sf::IntRect(0, 32, 2 * boxPixelsX, boxPixelsY));
 			deathSprite.setPosition(player[x], player[y]);
 			window.draw(deathSprite);
-				
-			////this will check if its time to switch to the next rectangle
-			//if (switchClock.getElapsedTime().asMilliseconds() >= switchTime) 
-			//{
-			//	switchClock.restart();
-			//	deathState = 1;
-			//}
 		} 
 		else if (deathState == 1) 
 		{
@@ -369,36 +365,18 @@ void drawPlayer(sf::RenderWindow& window, float player[], sf::Sprite& playerSpri
 
 			deathSprite.setPosition(player[x], player[y]);
 			window.draw(deathSprite);
-
-			//if (switchClock.getElapsedTime().asMilliseconds() >= switchTime) 
-			//{
-			//	switchClock.restart();
-			//	deathState = 2;
-			//}
 		} 
 		else if (deathState == 2) 
 		{
 			deathSprite.setTextureRect(sf::IntRect(128, 32, 2 * boxPixelsX, boxPixelsY));
 			deathSprite.setPosition(player[x], player[y]);
 			window.draw(deathSprite);
-
-			/*if (switchClock.getElapsedTime().asMilliseconds() >= switchTime) 
-			{
-				switchClock.restart();
-				deathState = 3;
-			}*/
 		} 
 		else if (deathState == 3) 
 		{
 			deathSprite.setTextureRect(sf::IntRect(192, 32, 2 * boxPixelsX, boxPixelsY));
 			deathSprite.setPosition(player[x], player[y]);
 			window.draw(deathSprite);
-            
-			/*if (switchClock.getElapsedTime().asMilliseconds() >= switchTime) 
-			{
-				switchClock.restart();
-				deathState = 4;
-			}*/
 		}
 		else if (deathState == 4)
 		{
@@ -525,96 +503,6 @@ void drawMushrooms(sf::RenderWindow& window, sf::Sprite& mushroomSprite, float m
     }
 }
 
-// a function to draw the centipede with the head at the front
-void drawCentipede(sf::RenderWindow& window, float centipede[][4], int centipedeLength, sf::Sprite& centipedeHeadSprite, sf::Sprite& centipedeBodySprite)
-{
-    for (int i = 0; i < centipedeLength; i++) 
-    {
-    	if (centipede[i][2]) //draw only if segment exists
-    	{
-            if (i == 0) 
-            {
-                // draw the head at the front
-                centipedeHeadSprite.setPosition(centipede[i][x], centipede[i][y]);
-                window.draw(centipedeHeadSprite);
-            } 
-            else 
-            {
-                // draw the body segments
-                centipedeBodySprite.setPosition(centipede[i][x], centipede[i][y]);
-                window.draw(centipedeBodySprite);
-            }
-        
-        }
-        
-    }
-}
-
-// a function to control the centipede's movement
-void moveCentipede(float centipede[][4], int centipedeLength, float centipedeSpeed)
-{
-	bool lastRow; //flag to determine if centipede has reached the bottom
-
-	for (int i = 0; i < centipedeLength && centipede[i][exists]; i++)
-	{
-		lastRow = false;
-		//starts moving left, hits the left edge
-		if (centipede[i][x] != boxPixelsX && centipede[i][3] == 1) //move left until it needs to start turning (one column before)
-			centipede[i][x] -= centipedeSpeed;
-
-		if (centipede[i][x] == boxPixelsX && centipede[i][3] == 1) //start turning one row before: drop half a row down while still moving
-		{
-			centipede[i][x] -= boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
-			centipede[i][y] += boxPixelsY / 2;
-		}
-
-		if (centipede[i][x] == 0 && centipede[i][3] == 1) //once dropped halfway, turn and move right; drop another half row so that in total, one full row is dropped
-		{
-			centipede[i][x] += boxPixelsX;
-			centipede[i][y] += boxPixelsY / 2;
-			centipede[i][3] = 0; //change the direction so it can move right now
-		}
-
-		//starts moving right, hits the right edge
-		if (centipede[i][x] != resolutionX - 2 * boxPixelsX && centipede[i][3] == 0) //resolutionX - 2*boxPixelsX (896) is one column behind the edge, where we want to start turning
-			centipede[i][x] += centipedeSpeed;
-
-		if (centipede[i][x] == resolutionX - 2 * boxPixelsX && centipede[i][3] == 0)
-		{
-			centipede[i][x] += boxPixelsX / 2;
-			centipede[i][y] += boxPixelsY / 2;
-		}
-
-		if (centipede[i][x] == resolutionX - boxPixelsX && centipede[i][3] == 0)
-		{
-			centipede[i][x] -= boxPixelsX;
-			centipede[i][y] += boxPixelsY / 2;
-			centipede[i][3] = 1; //change the direction so it can move left now
-		}
-		
-		if (centipede[i][y] == resolutionY - boxPixelsY)
-			lastRow = true;
-
-		if (lastRow) //centipede at bottom of screen, start looping in player area
-		{
-			if (centipede[i][3] == 1) //moving left
-			{
-				centipede[i][x] += boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
-				while (centipede[i][y] > resolutionY - 5 * boxPixelsY)
-					centipede[i][y] -= boxPixelsY/2;
-				centipede[i][3] = 0; //change direction
-			}
-			else if (centipede[i][3] == 0) //moving right
-			{
-				centipede[i][x] -= boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
-				while (centipede[i][y] > resolutionY - 5 * boxPixelsY)
-					centipede[i][y] -= boxPixelsY / 2;
-				centipede[i][3] = 1; //change direction
-			}
-		}
-	}
-}
-
 // a function to control the centipede's movement after colliding with a mushroom so it turns and descends faster
 void mushroomCentipedeCollision(float centipede[][4], int centipedeLength, float mushrooms[][3], int mushroomsCount, float centipedeSpeed)
 {
@@ -658,41 +546,6 @@ void mushroomCentipedeCollision(float centipede[][4], int centipedeLength, float
 				}
 
             }
-        }
-    }
-}
-
-// a function to control the centipede being hit by the bullet
-void shootCentipede(float bullet[], float centipede[][4], int centipedeLength, int& score, int& hits, sf::RenderWindow& window, sf::Sprite& poisonedMushroomSprite, float poisonedMushroom[][3])
-{
-    int bulletX = bullet[x] / boxPixelsX; // bullet coordinates within grid
-    int bulletY = bullet[y] / boxPixelsY;
-
-    for (int i = 0; i < centipedeLength; i++) 
-	{
-        if (centipede[i][2]) // if centipede segment exists
-		{ 
-			int centipedeX = centipede[i][x] / boxPixelsX; // centipede segment coordinates within grid
-			int centipedeY = centipede[i][y] / boxPixelsY;
-
-			// check for bullet and centipede collision
-			if (bulletX == centipedeX && bulletY == centipedeY) 
-			{
-				hits++;
-				bullet[exists] = false; // bullet disappears on hit
-				centipede[i][2] = false; // centipede segment disappears on hit
-				score += 10; // 10 points for the body
-
-				if (i == 0) //bullet hits the head
-				{
-					for (int j = 1; j < centipedeLength; j++) 
-					{
-						hits++;
-						centipede[j][2] = false; // set all segments to false so that centipede disappears
-						score += 20; // 20 points for the head
-					}
-				} 
-			}
         }
     }
 }
@@ -764,4 +617,161 @@ void centipedePlayerCollision(float player[], float centipede[][4], int centiped
 	    } 
 	}
 }
+
+// a function to draw the centipede with the head at the front
+void drawCentipede(sf::RenderWindow& window, float centipede[][4], int centipedeLength, sf::Sprite& centipedeHeadSprite, sf::Sprite& centipedeBodySprite)
+{
+	for (int i = 0; i < centipedeLength; i++)
+	{
+		if (centipede[i][exists]) //draw only if segment exists
+		{
+			if (i == 0 || !centipede[i - 1][exists]) //head at 0th index and the index next to every deleted portion (segment head)
+			{
+				// draw the head at the front
+				centipedeHeadSprite.setPosition(centipede[i][x], centipede[i][y]);
+				window.draw(centipedeHeadSprite);
+			}
+			else //body
+			{
+				// draw the body segments
+				centipedeBodySprite.setPosition(centipede[i][x], centipede[i][y]);
+				window.draw(centipedeBodySprite);
+			}
+
+		}
+
+	}
+}
+
+// a function to control the centipede's movement
+void moveCentipede(float centipede[][4], int centipedeLength, float centipedeSpeed)
+{
+	bool lastRow; //flag to determine if centipede has reached the bottom
+
+	for (int i = 0; i < centipedeLength; i++)
+	{
+		if (!centipede[i][exists])
+			continue;
+
+		lastRow = false;
+		//starts moving left, hits the left edge
+		if (centipede[i][x] != boxPixelsX && centipede[i][3] == 1) //move left until it needs to start turning (one column before)
+			centipede[i][x] -= centipedeSpeed;
+
+		if (centipede[i][x] == boxPixelsX && centipede[i][3] == 1) //start turning one row before: drop half a row down while still moving
+		{
+			centipede[i][x] -= boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
+			centipede[i][y] += boxPixelsY / 2;
+		}
+
+		if (centipede[i][x] == 0 && centipede[i][3] == 1) //once dropped halfway, turn and move right; drop another half row so that in total, one full row is dropped
+		{
+			centipede[i][x] += boxPixelsX;
+			centipede[i][y] += boxPixelsY / 2;
+			centipede[i][3] = 0; //change the direction so it can move right now
+		}
+
+		//starts moving right, hits the right edge
+		if (centipede[i][x] != resolutionX - 2 * boxPixelsX && centipede[i][3] == 0) //resolutionX - 2*boxPixelsX (896) is one column behind the edge, where we want to start turning
+			centipede[i][x] += centipedeSpeed;
+
+		if (centipede[i][x] == resolutionX - 2 * boxPixelsX && centipede[i][3] == 0)
+		{
+			centipede[i][x] += boxPixelsX / 2;
+			centipede[i][y] += boxPixelsY / 2;
+		}
+
+		if (centipede[i][x] == resolutionX - boxPixelsX && centipede[i][3] == 0)
+		{
+			centipede[i][x] -= boxPixelsX;
+			centipede[i][y] += boxPixelsY / 2;
+			centipede[i][3] = 1; //change the direction so it can move left now
+		}
+
+		if (centipede[i][y] == resolutionY - boxPixelsY)
+			lastRow = true;
+
+		if (lastRow) //centipede at bottom of screen, start looping in player area
+		{
+			if (centipede[i][3] == 1) //moving left
+			{
+				centipede[i][x] += boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
+				while (centipede[i][y] > resolutionY - 5 * boxPixelsY)
+					centipede[i][y] -= boxPixelsY / 2;
+				centipede[i][3] = 0; //change direction
+			}
+			else if (centipede[i][3] == 0) //moving right
+			{
+				centipede[i][x] -= boxPixelsX / 2; //so it turns half a column instead from 32 (boxPixels)
+				while (centipede[i][y] > resolutionY - 5 * boxPixelsY)
+					centipede[i][y] -= boxPixelsY / 2;
+				centipede[i][3] = 1; //change direction
+			}
+		}
+	}
+}
+
+// a function to control the centipede being hit by the bullet
+void shootCentipede(float bullet[], float centipede[][4], int centipedeLength, int& score, int& hits, sf::RenderWindow& window, sf::Sprite& poisonedMushroomSprite, float poisonedMushroom[][3])
+{
+	int bulletX = bullet[x] / boxPixelsX; // bullet coordinates within grid
+	int bulletY = bullet[y] / boxPixelsY;
+
+	for (int i = 0; i < centipedeLength; i++)
+	{
+		if (!centipede[i][exists]) //sklip deleted segments
+			continue;
+
+		int centipedeX = centipede[i][x] / boxPixelsX; // centipede segment coordinates within grid
+		int centipedeY = centipede[i][y] / boxPixelsY;
+
+		// check for bullet and centipede collision
+		if (bulletX == centipedeX && bulletY == centipedeY)
+		{
+			if (i == 0 || !centipede[i - 1][exists]) //bullet hits head
+			{
+				for (int j = 1; j < centipedeLength && centipede[j][exists]; j++) //iterate over that segment's portion
+				{
+					hits++;
+					centipede[j][2] = false; // set all segments to false so that centipede disappears
+				}
+				centipede[i][2] = false;
+				score += 20; // 20 points for the head
+			}
+			else //hit body
+			{
+				bullet[exists] = false;
+				hits++;
+				score += 10; //10 points for body
+				splitCentipede(centipede, centipedeLength, i); //split the centipede
+			}
+		}
+	}
+}
+
+// a function to split the centipede upon being hit
+void splitCentipede(float centipede[][4], int centipedeLength, int index)
+{
+
+	if (index < 0 || index >= centipedeLength) //invalid index
+		return;
+
+	centipede[index][exists] = false; // mark hit segment as nonexistent
+
+	bool newDirection = !centipede[index][3]; //toggle direction of new segment
+
+	for (int i = index + 1; i < centipedeLength; i++)
+	{
+		if (!centipede[i][exists])
+		{
+			break; //stop if another split is encountered (segments divded by nonexistent parts)
+		}
+		centipede[i][3] = newDirection; //reverse direction of centipede
+		//cout << "new coordinates: (" << centipede[i][x] << ", " << centipede[i][y] << ")" << endl;
+	}
+}
+
+
+
+
 
